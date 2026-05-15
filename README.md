@@ -1,4 +1,4 @@
-## Hi, I'm Nikita
+## Hi, I'm Vadim
 
 Founder and tech admin of **[PinkyFoxy](https://pinkyfoxy.com)** — an anarchy Minecraft SMP running CanvasMC (Folia fork).
 
