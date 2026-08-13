@@ -1,32 +1,37 @@
-## Hi, I'm Vadim
+<p align="center">
+  <a href="https://github.com/DimaSergeew/LightHealth">
+    <img src="https://raw.githubusercontent.com/DimaSergeew/LightHealth/main/assets/banner.png" alt="LightHealth" width="800">
+  </a>
+</p>
 
-Founder and tech admin of **[PinkyFoxy](https://pinkyfoxy.com)** — an anarchy Minecraft SMP running CanvasMC (Folia fork).
+<h1 align="center">Vadim</h1>
 
-### What I do
+<p align="center">
+  Java developer &middot; Paper / Purpur / Folia plugins<br>
+  I write small plugins that do one thing well.
+</p>
 
-- Run the PinkyFoxy stack: CanvasMC 26.1.2, MariaDB, Pelican panel, Cloudflare-fronted infra
-- Write small Paper/Folia plugins for in-house needs
-- Contribute fixes and bug reports to the plugin ecosystem I depend on
-
-### Active plugins
-
-| Plugin | Description |
-|---|---|
-| **[AuthSecurity](https://github.com/DimaSergeew/AuthSecurity)** | Paper/Folia auth plugin — holds the player in the configuration phase until login. Argon2id, H2/MariaDB via HikariCP, IP rate-limit, Brigadier commands. |
-| **[ItemDonate](https://github.com/DimaSergeew/ItemDonate)** | Donate-as-items system for Paper/Folia with anti-dupe protection (LuckPerms + PlayerPoints). |
-
-### Recent upstream contributions
-
-- [RayTraceAntiXray PR #8](https://github.com/TauCu/RayTraceAntiXray/pull/8) — concurrency & error-handling fixes
-- [CMI #10251](https://github.com/Zrips/CMI/issues/10251) · [#10252](https://github.com/Zrips/CMI/issues/10252) — Folia thread violations (fixed in next CMI)
-- [Canvas #222](https://github.com/CraftCanvasMC/Canvas/issues/222) — PluginClassLoader lifecycle bug on plugin self-disable
-- [Grim #2662](https://github.com/GrimAnticheat/Grim/issues/2662) — NPE in `BukkitPlatformPlayer` on reconnect
-- [AxAuctions repro #1040](https://github.com/Artillex-Studios/Issues/issues/1040) — Folia thread violation in auction creation
-
-### Stack
-
-`Java · Paper API · Folia · CanvasMC · MariaDB · HikariCP · Brigadier · Pelican · Cloudflare`
+<p align="center">
+  <a href="https://github.com/DimaSergeew/LightHealth"><img src="https://img.shields.io/github/v/release/DimaSergeew/LightHealth?style=flat-square&label=LightHealth&color=2D6A4F" alt="LightHealth release"></a>
+  <a href="https://modrinth.com/plugin/lighthealth"><img src="https://img.shields.io/badge/modrinth-lighthealth-1BD96A?style=flat-square&logo=modrinth&logoColor=white" alt="Modrinth"></a>
+  <a href="https://www.spigotmc.org/resources/lighthealth.137519/"><img src="https://img.shields.io/badge/spigotmc-137519-ED8106?style=flat-square" alt="SpigotMC"></a>
+  <a href="https://dimasergeew.github.io/LightHealth/"><img src="https://img.shields.io/badge/docs-wiki-1DB954?style=flat-square" alt="Docs"></a>
+</p>
 
 ---
 
-🦊 **[pinkyfoxy.com](https://pinkyfoxy.com)**
+### [LightHealth](https://github.com/DimaSergeew/LightHealth)
+
+Show mob health and damage &mdash; clearly, and nothing else.
+
+Holograms &middot; floating numbers &middot; action bar &middot; boss bar &middot; look-at
+
+Runs on **Paper**, **Purpur**, and **Folia** (1.21+ / Paper 26.x). No dependencies. Locales: English, Russian, Spanish, Chinese. MIT.
+
+[Documentation](https://dimasergeew.github.io/LightHealth/) &middot; [Modrinth](https://modrinth.com/plugin/lighthealth) &middot; [SpigotMC](https://www.spigotmc.org/resources/lighthealth.137519/) &middot; [Releases](https://github.com/DimaSergeew/LightHealth/releases)
+
+---
+
+I run **[PinkyFoxy](https://pinkyfoxy.com)** &mdash; an anarchy Minecraft SMP on CanvasMC (Folia).
+
+`Java` `Paper API` `Folia` `CanvasMC` `MariaDB` `HikariCP` `Brigadier`
