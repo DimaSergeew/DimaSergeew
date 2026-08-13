@@ -1,37 +1,50 @@
-<p align="center">
-  <a href="https://github.com/DimaSergeew/LightHealth">
-    <img src="https://raw.githubusercontent.com/DimaSergeew/LightHealth/main/assets/banner.png" alt="LightHealth" width="800">
-  </a>
-</p>
+<div align="center">
 
-<h1 align="center">Vadim</h1>
+# Vadim
 
-<p align="center">
-  Java developer &middot; Paper / Purpur / Folia plugins<br>
-  I write small plugins that do one thing well.
-</p>
+`@DimaSergeew`
 
-<p align="center">
-  <a href="https://github.com/DimaSergeew/LightHealth"><img src="https://img.shields.io/github/v/release/DimaSergeew/LightHealth?style=flat-square&label=LightHealth&color=2D6A4F" alt="LightHealth release"></a>
-  <a href="https://modrinth.com/plugin/lighthealth"><img src="https://img.shields.io/badge/modrinth-lighthealth-1BD96A?style=flat-square&logo=modrinth&logoColor=white" alt="Modrinth"></a>
-  <a href="https://www.spigotmc.org/resources/lighthealth.137519/"><img src="https://img.shields.io/badge/spigotmc-137519-ED8106?style=flat-square" alt="SpigotMC"></a>
-  <a href="https://dimasergeew.github.io/LightHealth/"><img src="https://img.shields.io/badge/docs-wiki-1DB954?style=flat-square" alt="Docs"></a>
-</p>
+**Java** \&nbsp;·\&nbsp; **Paper** \&nbsp;·\&nbsp; **Purpur** \&nbsp;·\&nbsp; **Folia**
+
+I write small plugins that do one thing well.
+
+[LightHealth](https://github.com/DimaSergeew/LightHealth)
+\&nbsp;·\&nbsp;
+[Documentation](https://dimasergeew.github.io/LightHealth/)
+\&nbsp;·\&nbsp;
+[PinkyFoxy](https://pinkyfoxy.com)
+
+</div>
 
 ---
 
-### [LightHealth](https://github.com/DimaSergeew/LightHealth)
+### Featured
 
-Show mob health and damage &mdash; clearly, and nothing else.
+**[LightHealth](https://github.com/DimaSergeew/LightHealth)** — v1.0.3
 
-Holograms &middot; floating numbers &middot; action bar &middot; boss bar &middot; look-at
+A Paper plugin for mob health and damage feedback. Holograms, floating numbers, action bar, boss bar, look-at. No extra gameplay. No dependencies.
 
-Runs on **Paper**, **Purpur**, and **Folia** (1.21+ / Paper 26.x). No dependencies. Locales: English, Russian, Spanish, Chinese. MIT.
+| | |
+|:--|:--|
+| Platforms | Paper, Purpur, Folia \&nbsp;·\&nbsp; 1.21+ / Paper 26.x |
+| Runtime | Java 25+ |
+| Locales | English, Russian, Spanish, Chinese |
+| License | MIT |
 
-[Documentation](https://dimasergeew.github.io/LightHealth/) &middot; [Modrinth](https://modrinth.com/plugin/lighthealth) &middot; [SpigotMC](https://www.spigotmc.org/resources/lighthealth.137519/) &middot; [Releases](https://github.com/DimaSergeew/LightHealth/releases)
+[Documentation](https://dimasergeew.github.io/LightHealth/)
+\&nbsp;·\&nbsp;
+[Modrinth](https://modrinth.com/plugin/lighthealth)
+\&nbsp;·\&nbsp;
+[SpigotMC](https://www.spigotmc.org/resources/lighthealth.137519/)
+\&nbsp;·\&nbsp;
+[Releases](https://github.com/DimaSergeew/LightHealth/releases)
 
 ---
 
-I run **[PinkyFoxy](https://pinkyfoxy.com)** &mdash; an anarchy Minecraft SMP on CanvasMC (Folia).
+### About
 
-`Java` `Paper API` `Folia` `CanvasMC` `MariaDB` `HikariCP` `Brigadier`
+Founder and tech admin of **[PinkyFoxy](https://pinkyfoxy.com)** — an anarchy Minecraft SMP on CanvasMC (Folia).
+
+I build in-house plugins when the stack needs something small and exact, then publish the ones that stand on their own.
+
+**Stack** — Java · Paper API · Folia · CanvasMC · MariaDB · HikariCP · Brigadier
