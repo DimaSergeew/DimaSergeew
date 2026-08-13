@@ -4,14 +4,14 @@
 
 `@DimaSergeew`
 
-**Java** \&nbsp;·\&nbsp; **Paper** \&nbsp;·\&nbsp; **Purpur** \&nbsp;·\&nbsp; **Folia**
+**Java** · **Paper** · **Purpur** · **Folia**
 
 I write small plugins that do one thing well.
 
 [LightHealth](https://github.com/DimaSergeew/LightHealth)
-\&nbsp;·\&nbsp;
+·
 [Documentation](https://dimasergeew.github.io/LightHealth/)
-\&nbsp;·\&nbsp;
+·
 [PinkyFoxy](https://pinkyfoxy.com)
 
 </div>
@@ -26,17 +26,17 @@ A Paper plugin for mob health and damage feedback. Holograms, floating numbers, 
 
 | | |
 |:--|:--|
-| Platforms | Paper, Purpur, Folia \&nbsp;·\&nbsp; 1.21+ / Paper 26.x |
+| Platforms | Paper, Purpur, Folia · 1.21+ / Paper 26.x |
 | Runtime | Java 25+ |
 | Locales | English, Russian, Spanish, Chinese |
 | License | MIT |
 
 [Documentation](https://dimasergeew.github.io/LightHealth/)
-\&nbsp;·\&nbsp;
+·
 [Modrinth](https://modrinth.com/plugin/lighthealth)
-\&nbsp;·\&nbsp;
+·
 [SpigotMC](https://www.spigotmc.org/resources/lighthealth.137519/)
-\&nbsp;·\&nbsp;
+·
 [Releases](https://github.com/DimaSergeew/LightHealth/releases)
 
 ---
