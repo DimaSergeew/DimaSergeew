@@ -24,6 +24,7 @@
   table { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
   td { padding:4px 0; border-bottom:1px solid #2c333d; }
   td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  label.chk { display:flex; gap:8px; align-items:center; color:var(--text); margin-top:14px; }
   .hint { color:var(--muted); font-size:12px; margin-top:8px; }
 </style>
 </head>
@@ -53,6 +54,7 @@
     <input id="dist" type="range" min="100" max="3000" step="100" value="500">
     <label for="play">Скорость воспроизведения <b id="playV"></b></label>
     <input id="play" type="range" min="0" max="4" step="1" value="2">
+    <label class="chk"><input id="stress" type="checkbox" checked> Показывать напряжения в броне</label>
     <div class="btns"><button id="fire">ОГОНЬ!</button><button id="again" class="sec" title="Повторить тот же выстрел">↻</button></div>
     <div class="result" id="res"></div>
     <table id="stats"></table>
@@ -112,6 +114,82 @@ function compute(seed) {
   return { type, s, cal, ang, thk, dist, pen, basePen, eff, effAng, norm, overmatch, outcome, heDamage, len, dia, sc };
 }
 
+// ---------- поле напряжений (сетка в координатах плиты: s вдоль, d вглубь, мм) ----------
+function stressGrid(r) {
+  const s0 = -r.dia * 3 - 40, s1 = Math.max(r.thk * Math.tan(rad(Math.min(r.ang, 75))), r.dia * 2.5) + r.dia * 3 + 40;
+  const d0 = -r.dia * 0.3, d1 = r.thk + r.dia * 0.6;
+  let cs = 6 / r.sc;
+  while (((s1 - s0) / cs) * ((d1 - d0) / cs) > 7000) cs *= 1.2;
+  const ns = Math.ceil((s1 - s0) / cs), nd = Math.ceil((d1 - d0) / cs);
+  return { s0, d0, cs, ns, nd, cur: new Float32Array(ns * nd), res: new Float32Array(ns * nd) };
+}
+
+const YIELD = 1000; // условный предел текучести брони, МПа
+function stressUpdate(S, dt) {
+  const g = S.g, r = S.r, sh = S.shell;
+  if (S.tImpact == null) return;
+  const t = S.t - S.tImpact, src = [];
+  if (S.phase === 'pen' && S.chan) { const k = sh.v / S.v0; src.push({ s: S.chan.s, d: S.chan.d, R: r.dia * 0.9, A: 1800 * (0.35 + 0.65 * k * k) }); }
+  if (S.phase === 'jet' && S.chan) src.push({ s: S.chan.s, d: S.chan.d, R: r.dia * 0.35, A: 1900 });
+  if (S.phase === 'ric') src.push({ s: S.ricS, d: 0, R: r.dia * 0.8, A: 1300 });
+  if (r.type === 'HE' && t < 300) src.push({ s: 0, d: 0, R: r.dia * 1.4, A: 1700 * Math.exp(-t / 90) });
+  if (r.type === 'HEAT' && t < 200) src.push({ s: 0, d: 0, R: r.dia * 0.9, A: 900 * Math.exp(-t / 60) });
+  if (S.bulge > 0) src.push({ s: S.bulgeS, d: r.thk, R: r.dia * 0.7,
+    A: Math.min(1500, S.bulge / (r.dia * 0.22) * 1400) * (S.done ? Math.exp(-(S.t - S.tEvent) / 150) : 1) });
+  // упругая волна напряжений расходится от точки удара (~5.9 мм/мкс в стали)
+  const wr = 5.9 * t, ww = Math.max(r.dia * 0.35, 10), wa = t < 500 ? 550 * Math.exp(-t / 120) : 0;
+  const fade = Math.pow(0.5, dt / 1500);
+  let mx = 0;
+  for (let j = 0; j < g.nd; j++) {
+    const d = g.d0 + (j + 0.5) * g.cs;
+    for (let i = 0; i < g.ns; i++) {
+      const s = g.s0 + (i + 0.5) * g.cs, k = j * g.ns + i;
+      let v = 0;
+      for (const q of src) { const e = ((s - q.s) ** 2 + (d - q.d) ** 2) / (q.R * q.R); if (e < 9) v += q.A * Math.exp(-e); }
+      if (wa > 1) { const x = (Math.hypot(s, d) - wr) / ww; if (x * x < 9) v += wa * Math.exp(-x * x); }
+      g.cur[k] = v;
+      // пластическая зона остаётся «подсвеченной» после снятия нагрузки
+      g.res[k] = v > YIELD * 0.8 ? Math.max(g.res[k], v * 0.55) : g.res[k] * fade;
+      if (v > mx) mx = v;
+    }
+  }
+  S.sNow = mx; S.sMax = Math.max(S.sMax, mx);
+}
+
+const STOPS = [[0, 40, 80, 255], [0.25, 0, 200, 255], [0.5, 60, 220, 80], [0.75, 255, 220, 0], [1, 255, 30, 20]];
+function stressColor(v) {
+  const x = clamp(v / 1500, 0, 1);
+  let i = 1; while (i < STOPS.length - 1 && STOPS[i][0] < x) i++;
+  const a = STOPS[i - 1], b = STOPS[i], f = (x - a[0]) / (b[0] - a[0]);
+  const c = [1, 2, 3].map(n => Math.round(a[n] + (b[n] - a[n]) * f));
+  return `rgba(${c[0]},${c[1]},${c[2]},${0.15 + 0.7 * x})`;
+}
+
+function drawStress(S) {
+  const g = S.g, sc = S.r.sc;
+  ctx.save(); ctx.translate(CX, CY); ctx.transform(S.u.x * sc, S.u.y * sc, S.n.x * sc, S.n.y * sc, 0, 0);
+  for (let j = 0; j < g.nd; j++) for (let i = 0; i < g.ns; i++) {
+    const k = j * g.ns + i, v = Math.max(g.cur[k], g.res[k]);
+    if (v < 60) continue;
+    ctx.fillStyle = stressColor(v);
+    ctx.fillRect(g.s0 + i * g.cs, g.d0 + j * g.cs, g.cs * 1.05, g.cs * 1.05);
+  }
+  ctx.restore();
+}
+
+function legend(S) {
+  const x = 16, y = H - 58, w = 200, h = 10, gr = ctx.createLinearGradient(x, 0, x + w, 0);
+  STOPS.forEach(([o, r, g, b]) => gr.addColorStop(o, `rgb(${r},${g},${b})`));
+  ctx.fillStyle = gr; ctx.fillRect(x, y, w, h);
+  const yx = x + w * YIELD / 1500;
+  ctx.fillStyle = '#e6e8eb'; ctx.fillRect(yx - 1, y - 3, 2, h + 6);
+  ctx.font = '12px ui-monospace, Menlo, monospace'; ctx.fillStyle = '#9aa3ad';
+  ctx.fillText('σ, МПа  0', x, y - 6); ctx.textAlign = 'right'; ctx.fillText('1500+', x + w, y - 6);
+  ctx.textAlign = 'left'; ctx.fillText('↑ предел текучести', yx - 8, y + h + 14);
+  ctx.fillStyle = '#c9d1db';
+  ctx.fillText(`σ сейчас ${Math.round(S.sNow || 0)} · пик ${Math.round(S.sMax)} МПа`, x, y + h + 30);
+}
+
 // ---------- состояние симуляции (всё в мм и мкс, начало координат — точка попадания) ----------
 let sim = null, anim = null, lastSeed = 0.5;
 
@@ -125,6 +203,7 @@ function newSim(r) {
     shell: { x: -(CX - 30) / r.sc + r.len, y: 0, th: 0, v: v0, len: r.len, mush: 0, alive: true, p: 0 },
     cap: r.outcome === 'pen' ? Math.max(r.pen, r.eff * 1.08) : Math.min(r.pen, r.eff * 0.97),
     chan: null, chanW: 0, exitL: null, bulge: 0, bulgeS: 0, dent: 0, lip: 0, groove: 0, petals: 0,
+    g: stressGrid(r), sMax: 0,
     jet: 0, heat: 0, shake: 0, cracks: [], parts: [], plug: null, flash: 0, fx: 0, fy: 0, done: false, ramp: 1,
   };
 }
@@ -180,6 +259,7 @@ function step() {
     if (p.kind === 'smoke') { p.vx *= Math.pow(0.995, dt); p.vy *= Math.pow(0.995, dt); p.size += dt * 0.08; }
   }
   S.parts = S.parts.filter(p => p.life > 0);
+  stressUpdate(S, dt);
   S.heat = Math.max(0, S.heat - dt / 2500);
   S.flash = Math.max(0, S.flash - dt / 60);
   S.shake *= 0.9;
@@ -324,6 +404,7 @@ function draw(S) {
   ctx.save(); poly(platePts); ctx.clip();
   ctx.strokeStyle = 'rgba(255,255,255,0.07)';
   for (let k = -H; k < W + H; k += 9) { ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k - H, H); ctx.stroke(); }
+  if ($('stress').checked && S.tImpact != null) drawStress(S);
   // раскалённая зона
   if (S.heat > 0 && S.chan) {
     const t = toW(S, S.chan.s, S.chan.d), [hx, hy] = px(S, t.x, t.y);
@@ -480,6 +561,7 @@ function hud(S) {
   ctx.fillStyle = '#7d8793';
   ctx.fillText(`угол ${r.ang}° · приведённая ${r.eff.toFixed(0)} мм · сетка 10 см`, W - 16, H - 14);
   ctx.textAlign = 'left';
+  if ($('stress').checked && S.tImpact != null) legend(S);
 }
 
 function showStats(r, final) {
@@ -519,6 +601,7 @@ function preview() {
 
 ['type', 'cal', 'ang', 'thk', 'dist'].forEach(id => $(id).addEventListener('input', () => { updLabels(); preview(); }));
 $('play').addEventListener('input', updLabels);
+$('stress').addEventListener('change', () => { if (sim) draw(sim); });
 $('fire').onclick = () => start(Math.random());
 $('again').onclick = () => start(lastSeed);
 updLabels(); preview();
