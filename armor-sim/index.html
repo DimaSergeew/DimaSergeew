@@ -19,7 +19,7 @@
   .btns { display:flex; gap:8px; margin-top:14px; }
   button { flex:1; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#1a1a1a; font-weight:700; font-size:16px; cursor:pointer; }
   button.sec { background:#2a313b; color:var(--text); flex:0 0 auto; }
-  #tc { margin-bottom:12px; cursor:crosshair; }
+  #tc { margin-bottom:12px; cursor:crosshair; touch-action:none; }
   canvas { width:100%; height:auto; background:#0b0d10; border-radius:10px; display:block; touch-action:manipulation; }
   .result { margin-top:12px; font-size:22px; font-weight:800; min-height:30px; }
   table { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
@@ -679,7 +679,7 @@ const presetById = id => PRESETS.find(p => p.id === id);
 // ---------- танки: силуэт сбоку, см (x — от носа назад, y — от земли вверх) ----------
 const TANKS = {
   tiger: {
-    name: 'Тигр I', paint: '#a8955f', dark: '#6b5f3c', enemyGun: 'kwk44',
+    name: 'Тигр I', gunH: 237, paint: '#a8955f', dark: '#6b5f3c', enemyGun: 'kwk44',
     xmin: -270, xmax: 640, ymax: 305,
     deco(T) {
       T.rr(25, 0, 600, 78, 30, '#2a2925');
@@ -693,16 +693,16 @@ const TANKS = {
       T.poly([[20, 185], [640, 185], [640, 190], [20, 190]], T.dark);
     },
     zones: [
-      { name: 'НЛД (нижний лобовой)', thk: 100, ang: 24, pts: [[45, 40], [16, 106], [32, 110], [60, 44]] },
-      { name: 'Лобовой лист корпуса', thk: 100, ang: 10, pts: [[18, 108], [31, 185], [46, 185], [33, 108]] },
+      { name: 'НЛД (нижний лобовой)', thk: 100, ang: 24, tilt: -1, pts: [[45, 40], [16, 106], [32, 110], [60, 44]] },
+      { name: 'Лобовой лист корпуса', thk: 100, ang: 10, tilt: 1, pts: [[18, 108], [31, 185], [46, 185], [33, 108]] },
       { name: 'Маска орудия', thk: 120, ang: 0, pts: [[148, 198], [146, 268], [184, 274], [184, 192]] },
-      { name: 'Борт башни', thk: 80, ang: 0, pts: [[184, 190], [186, 278], [395, 278], [426, 240], [420, 190]] },
-      { name: 'Борт корпуса верхний', thk: 80, ang: 0, pts: [[46, 110], [612, 110], [612, 185], [46, 185]] },
-      { name: 'Борт корпуса за катками', thk: 60, ang: 0, pts: [[60, 44], [600, 44], [600, 104], [35, 104]] },
+      { name: 'Борт башни', thk: 80, ang: 0, side: true, pts: [[184, 190], [186, 278], [395, 278], [426, 240], [420, 190]] },
+      { name: 'Борт корпуса верхний', thk: 80, ang: 0, side: true, pts: [[46, 110], [612, 110], [612, 185], [46, 185]] },
+      { name: 'Борт корпуса за катками', thk: 60, ang: 0, side: true, pts: [[60, 44], [600, 44], [600, 104], [35, 104]] },
     ],
   },
   maus: {
-    name: 'Маус', paint: '#7d8170', dark: '#4c4f44', enemyGun: 'kwk36',
+    name: 'Маус', gunH: 290, paint: '#7d8170', dark: '#4c4f44', enemyGun: 'kwk36',
     xmin: -250, xmax: 1015, ymax: 368,
     deco(T) {
       T.rr(50, 0, 935, 30, 14, '#2a2925');
@@ -713,28 +713,35 @@ const TANKS = {
       T.poly([[600, 360], [660, 360], [655, 372], [605, 372]], T.dark);
     },
     zones: [
-      { name: 'НЛД (нижний лобовой)', thk: 200, ang: 35, pts: [[72, 22], [0, 122], [24, 126], [94, 26]] },
-      { name: 'ВЛД (верхний лобовой)', thk: 200, ang: 55, pts: [[0, 122], [145, 224], [172, 224], [24, 122]] },
+      { name: 'НЛД (нижний лобовой)', thk: 200, ang: 35, tilt: -1, pts: [[72, 22], [0, 122], [24, 126], [94, 26]] },
+      { name: 'ВЛД (верхний лобовой)', thk: 200, ang: 55, tilt: 1, pts: [[0, 122], [145, 224], [172, 224], [24, 122]] },
       { name: 'Маска орудия', thk: 250, ang: 0, pts: [[350, 260], [348, 322], [392, 328], [392, 254]] },
       { name: 'Лоб башни', thk: 220, ang: 0, pts: [[392, 236], [378, 292], [392, 352], [442, 362], [442, 230]] },
-      { name: 'Борт башни', thk: 200, ang: 30, pts: [[442, 228], [442, 362], [840, 357], [872, 320], [862, 228]] },
-      { name: 'Борт корпуса верхний', thk: 180, ang: 0, pts: [[24, 122], [985, 122], [985, 224], [172, 224]] },
-      { name: 'Борт нижний (экран 100 + борт 80)', thk: 180, ang: 0, pts: [[94, 26], [985, 26], [985, 122], [24, 122]] },
+      { name: 'Борт башни', thk: 200, ang: 30, side: true, pts: [[442, 228], [442, 362], [840, 357], [872, 320], [862, 228]] },
+      { name: 'Борт корпуса верхний', thk: 180, ang: 0, side: true, pts: [[24, 122], [985, 122], [985, 224], [172, 224]] },
+      { name: 'Борт нижний (экран 100 + борт 80)', thk: 180, ang: 0, side: true, pts: [[94, 26], [985, 26], [985, 122], [24, 122]] },
     ],
   },
 };
 
 const tc = $('tc'), tctx = tc.getContext('2d'), TW = tc.width, TH = tc.height;
-let selZone = null, hoverZone = null, hitPt = null, lastHit = null;
+let selZone = null, hoverZone = null, hitPt = null, lastHit = null, aimPt = null, aiming = false, tracer = null;
+const SHOOT_W = 190; // место слева под своё орудие
 
 function tankXf(T) {
-  const k = Math.min((TW - 40) / (T.xmax - T.xmin), (TH - 70) / T.ymax);
-  return { k, X: x => 20 + (x - T.xmin) * k, Y: y => TH - 22 - y * k };
+  const k = Math.min((TW - 40 - SHOOT_W) / (T.xmax - T.xmin), (TH - 70) / T.ymax);
+  return { k, X: x => 20 + SHOOT_W + (x - T.xmin) * k, Y: y => TH - 22 - y * k };
 }
 
-function judgeZone(z) {
+// угол возвышения траектории в точке попадания (°, + — снаряд идёт вниз), по реальной дистанции
+function elevAt(T, p) { return Math.atan(((shooterH(T) - p.y) / 100) / +$('dist').value) * 180 / Math.PI; }
+function shooterH(T) { return T === TANKS.tiger ? TANKS.maus.gunH : TANKS.tiger.gunH; }
+
+function judgeZone(z, e = 0) {
   const yaw = +$('yaw').value;
-  const ang = Math.acos(Math.cos(rad(z.ang)) * Math.cos(rad(yaw))) * 180 / Math.PI;
+  const c = z.side ? Math.cos(rad(z.ang)) * Math.cos(rad(yaw)) * Math.cos(rad(e))
+                   : Math.cos(rad(z.ang - (z.tilt || 0) * e)) * Math.cos(rad(yaw));
+  const ang = Math.acos(clamp(c, -1, 1)) * 180 / Math.PI;
   const r = compute(0.5, { thk: z.thk, ang });
   const margin = r.basePen / r.eff;
   const verdict = r.outcome === 'ric' ? 'ric' : margin >= 1.05 ? 'pen' : margin >= 0.95 ? 'edge' : 'nopen';
@@ -765,24 +772,26 @@ function drawTank() {
     tctx.lineWidth = z === selZone ? 3 : 2; api.poly(z.pts, 'rgba(0,0,0,0)', z === selZone ? '#f0a030' : '#ffffff'); tctx.lineWidth = 1;
   }
   if (lastHit && lastHit.tank === $('target').value) {
-    const c = { pen: '#3cc85a', nopen: '#e04848', ric: '#e0c040' }[lastHit.outcome];
+    const c = { pen: '#3cc85a', nopen: '#e04848', ric: '#e0c040', miss: '#9aa3ad' }[lastHit.outcome];
     tctx.beginPath(); tctx.arc(X(lastHit.x), Y(lastHit.y), 7, 0, 7); tctx.fillStyle = c; tctx.fill(); tctx.strokeStyle = '#000'; tctx.stroke();
-  } else if (hitPt) {
+  } else if (hitPt && !aiming) {
     tctx.strokeStyle = '#f0a030'; tctx.lineWidth = 2;
     tctx.beginPath(); tctx.arc(X(hitPt.x), Y(hitPt.y), 8, 0, 7); tctx.moveTo(X(hitPt.x) - 12, Y(hitPt.y)); tctx.lineTo(X(hitPt.x) + 12, Y(hitPt.y));
     tctx.moveTo(X(hitPt.x), Y(hitPt.y) - 12); tctx.lineTo(X(hitPt.x), Y(hitPt.y) + 12); tctx.stroke(); tctx.lineWidth = 1;
   }
+  drawShooter(T, X, Y, k);
   // подписи
+  tctx.fillStyle = 'rgba(11,13,16,0.8)'; tctx.fillRect(0, 0, TW, 50);
   tctx.font = '14px system-ui, sans-serif'; tctx.fillStyle = '#e6e8eb';
   const pr = presetById($('gun').value);
   tctx.fillText(`Цель: ${T.name}  ·  стреляет: ${pr.id === 'custom' ? r0label() : pr.name}`, 14, 22);
-  const z = hoverZone || selZone;
+  const z = hoverZone || selZone, ep = aimPt || hitPt;
   tctx.fillStyle = '#9aa3ad';
   if (z) {
-    const j = judgeZone(z);
+    const j = judgeZone(z, ep ? elevAt(T, ep) : 0);
     tctx.fillText(`${z.name}: ${z.thk} мм под ${z.ang}°` + (+$('yaw').value ? `, с доворотом ${j.ang.toFixed(0)}°` : '') +
       ` → приведённая ${j.r.eff.toFixed(0)} мм, бронепробитие ${j.r.basePen.toFixed(0)} мм — ${VTXT[j.verdict]}`, 14, 42);
-  } else tctx.fillText('Нажмите на участок брони, чтобы выбрать точку попадания', 14, 42);
+  } else tctx.fillText(aimPt ? 'Мимо брони' : 'Ведите пальцем по цели, чтобы навести орудие, отпустите — выстрел', 14, 42);
   // легенда
   let lx = TW - 330;
   for (const v of ['pen', 'edge', 'nopen']) {
@@ -795,7 +804,7 @@ function zoneAt(ev) {
   const T = TANKS[$('target').value]; if (!T) return null;
   const b = tc.getBoundingClientRect(), mx = (ev.clientX - b.left) * TW / b.width, my = (ev.clientY - b.top) * TH / b.height;
   const { X, Y, k } = tankXf(T);
-  const p = { x: (mx - 20) / k + T.xmin, y: (TH - 22 - my) / k };
+  const p = { x: (mx - 20 - SHOOT_W) / k + T.xmin, y: (TH - 22 - my) / k };
   for (const z of T.zones.slice().reverse()) {
     let inside = false;
     for (let i = 0, j = z.pts.length - 1; i < z.pts.length; j = i++) {
@@ -809,17 +818,76 @@ function zoneAt(ev) {
 
 function applyZone() {
   if (!selZone) return;
-  const j = judgeZone(selZone);
+  const T = TANKS[$('target').value];
+  const j = judgeZone(selZone, T && hitPt ? elevAt(T, hitPt) : 0);
   $('thk').value = selZone.thk; $('ang').value = Math.round(j.ang);
   updLabels(); preview();
 }
 
-tc.addEventListener('mousemove', ev => { const h = zoneAt(ev); hoverZone = h && h.z; drawTank(); });
-tc.addEventListener('mouseleave', () => { hoverZone = null; drawTank(); });
-tc.addEventListener('click', ev => {
-  const h = zoneAt(ev); if (!h || !h.z) return;
-  selZone = h.z; hitPt = h.p; lastHit = null; hoverZone = null; applyZone(); drawTank();
-});
+function drawShooter(T, X, Y, k) {
+  // своё орудие слева, ствол смотрит в точку прицеливания
+  const gh = shooterH(T), gy = Y(gh);
+  const S = T === TANKS.tiger ? TANKS.maus : TANKS.tiger, L = x => 20 + (x - 130) * k;
+  const px0 = L(215), gx = px0 + 80; // нос своего танка смотрит вправо
+  tctx.fillStyle = '#2a2925'; tctx.beginPath(); tctx.roundRect(0, Y(S === TANKS.maus ? 30 : 78), L(330), (S === TANKS.maus ? 30 : 78) * k, 12 * k); tctx.fill();
+  tctx.fillStyle = S.paint; tctx.beginPath();
+  tctx.moveTo(0, Y(gh - 60)); tctx.lineTo(L(260), Y(gh - 60)); tctx.lineTo(L(330), Y(S === TANKS.maus ? 120 : 110)); tctx.lineTo(L(320), Y(30)); tctx.lineTo(0, Y(30)); tctx.fill();
+  tctx.fillRect(0, Y(gh + 65), L(200) - 0, (125) * k);
+  tctx.fillStyle = S.dark; tctx.fillRect(L(200), Y(gh + 30), 30 * k, 60 * k);
+  const tgt = aimPt || hitPt;
+  const ang = tgt ? Math.atan2(Y(tgt.y) - gy, X(tgt.x) - px0) : 0;
+  const bl = 80;
+  tctx.save(); tctx.translate(px0, gy); tctx.rotate(clamp(ang, -0.5, 0.5));
+  tctx.fillStyle = '#56644f'; tctx.fillRect(0, -4, bl, 8); tctx.fillRect(bl - 14, -7, 16, 14);
+  tctx.restore();
+  // разрыв по дистанции
+  const bx = 20 + SHOOT_W - 22;
+  tctx.strokeStyle = '#7d8793'; tctx.beginPath(); tctx.moveTo(bx - 4, Y(0) + 8); tctx.lineTo(bx + 2, Y(0) - 8); tctx.moveTo(bx + 4, Y(0) + 8); tctx.lineTo(bx + 10, Y(0) - 8); tctx.stroke();
+  tctx.fillStyle = '#7d8793'; tctx.font = '12px system-ui, sans-serif'; tctx.fillText(`${$('dist').value} м`, bx - 20, Y(0) + 20);
+  if (aimPt && aiming) { // линия прицела и перекрестие
+    const ax = X(aimPt.x), ay = Y(aimPt.y), r = 8 + +$('dist').value * 0.004 * k * 10;
+    tctx.setLineDash([4, 6]); tctx.strokeStyle = 'rgba(240,160,48,0.5)'; tctx.beginPath(); tctx.moveTo(px0, gy); tctx.lineTo(ax, ay); tctx.stroke(); tctx.setLineDash([]);
+    tctx.strokeStyle = '#f0a030'; tctx.lineWidth = 1.5;
+    tctx.beginPath(); tctx.arc(ax, ay, r, 0, 7); tctx.moveTo(ax - r - 8, ay); tctx.lineTo(ax + r + 8, ay); tctx.moveTo(ax, ay - r - 8); tctx.lineTo(ax, ay + r + 8); tctx.stroke(); tctx.lineWidth = 1;
+  }
+  if (tracer) {
+    const f = tracer.f, x = px0 + (X(tracer.p.x) - px0) * f, y = gy + (Y(tracer.p.y) - gy) * f;
+    tctx.strokeStyle = '#ffd070'; tctx.lineWidth = 3; tctx.beginPath(); tctx.moveTo(x - (X(tracer.p.x) - px0) * 0.08, y - (Y(tracer.p.y) - gy) * 0.08); tctx.lineTo(x, y); tctx.stroke(); tctx.lineWidth = 1;
+    if (f < 0.15) { tctx.fillStyle = 'rgba(255,200,100,0.8)'; tctx.beginPath(); tctx.arc(gx, gy + Math.tan(clamp(Math.atan2(Y(tracer.p.y) - gy, X(tracer.p.x) - px0), -0.5, 0.5)) * (gx - px0), 10, 0, 7); tctx.fill(); }
+  }
+}
+
+function aimFrom(ev) { const h = zoneAt(ev); if (!h) return; aimPt = h.p; hoverZone = h.z; drawTank(); }
+tc.addEventListener('pointerdown', ev => { aiming = true; tc.setPointerCapture(ev.pointerId); lastHit = null; aimFrom(ev); });
+tc.addEventListener('pointermove', ev => { if (aiming) aimFrom(ev); else { const h = zoneAt(ev); hoverZone = h && h.z; drawTank(); } });
+tc.addEventListener('pointerup', ev => { if (!aiming) return; aiming = false; aimFrom(ev); fireAt(aimPt); });
+tc.addEventListener('pointercancel', () => { aiming = false; drawTank(); });
+
+// выстрел по точке с учётом рассеивания (~0.3 мрад → 3 см на 100 м)
+function fireAt(p) {
+  const T = TANKS[$('target').value]; if (!T || !p) return;
+  const sig = +$('dist').value * 0.03, g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+  const hp = { x: p.x + g() * sig, y: p.y + g() * sig };
+  const z = T.zones.slice().reverse().find(z => inPoly(z.pts, hp));
+  hoverZone = null; tracer = { p: hp, f: 0 }; cancelAnimationFrame(anim);
+  const t0 = performance.now();
+  const fly = now => {
+    tracer.f = Math.min(1, (now - t0) / 350); drawTank();
+    if (tracer.f < 1) return requestAnimationFrame(fly);
+    tracer = null;
+    if (!z) { hitPt = hp; selZone = null; lastHit = { tank: $('target').value, x: hp.x, y: hp.y, outcome: 'miss' }; $('res').textContent = 'ПРОМАХ'; $('res').style.color = 'var(--muted)'; drawTank(); return; }
+    selZone = z; hitPt = hp; aimPt = null; applyZone(); drawTank(); start(Math.random());
+  };
+  requestAnimationFrame(fly);
+}
+function inPoly(pts, p) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > p.y) !== (yj > p.y) && p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
 
 function setTarget() {
   const id = $('target').value, T = TANKS[id];
@@ -848,7 +916,7 @@ $('gun').addEventListener('change', applyPreset);
 $('target').addEventListener('change', setTarget);
 $('play').addEventListener('input', updLabels);
 $('stress').addEventListener('change', () => { if (sim) draw(sim); });
-$('fire').onclick = () => start(Math.random());
+$('fire').onclick = () => { if (TANKS[$('target').value] && hitPt) fireAt(aimPt || hitPt); else start(Math.random()); };
 $('again').onclick = () => start(lastSeed);
 
 updLabels(); preview();
