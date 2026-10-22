@@ -8,16 +8,18 @@
   :root { --bg:#14171c; --panel:#1e232b; --text:#e6e8eb; --muted:#9aa3ad; --accent:#f0a030; --ok:#4caf50; --bad:#e04848; --warn:#e0c040; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
-  .wrap { max-width:1100px; margin:0 auto; padding:16px; display:grid; grid-template-columns:300px 1fr; gap:16px; }
-  @media (max-width:800px) { .wrap { grid-template-columns:1fr; } }
-  h1 { font-size:20px; margin:0 0 12px; grid-column:1/-1; }
-  .panel { background:var(--panel); border-radius:10px; padding:14px; }
+  .wrap { max-width:1200px; margin:0 auto; padding:16px; display:grid; grid-template-columns:300px 1fr; gap:16px; }
+  @media (max-width:800px) { .wrap { grid-template-columns:1fr; } .view { order:-1; } }
+  h1 { font-size:20px; margin:0 0 4px; grid-column:1/-1; }
+  .panel { background:var(--panel); border-radius:10px; padding:14px; min-width:0; }
   label { display:block; margin:10px 0 4px; color:var(--muted); font-size:13px; }
   label b { color:var(--text); float:right; }
   select, input[type=range] { width:100%; }
   select { background:#2a313b; color:var(--text); border:1px solid #3a424e; border-radius:6px; padding:6px; }
-  button { margin-top:14px; width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#1a1a1a; font-weight:700; font-size:16px; cursor:pointer; }
-  canvas { width:100%; height:auto; background:#0e1014; border-radius:10px; display:block; }
+  .btns { display:flex; gap:8px; margin-top:14px; }
+  button { flex:1; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#1a1a1a; font-weight:700; font-size:16px; cursor:pointer; }
+  button.sec { background:#2a313b; color:var(--text); flex:0 0 auto; }
+  canvas { width:100%; height:auto; background:#0b0d10; border-radius:10px; display:block; touch-action:manipulation; }
   .result { margin-top:12px; font-size:22px; font-weight:800; min-height:30px; }
   table { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
   td { padding:4px 0; border-bottom:1px solid #2c333d; }
@@ -27,9 +29,9 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>💥 Симулятор пробития брони снарядом</h1>
+  <h1>Симулятор пробития брони</h1>
   <div class="panel">
-    <label>Тип снаряда</label>
+    <label for="type">Тип снаряда</label>
     <select id="type">
       <option value="AP">Бронебойный (ББ)</option>
       <option value="APCR">Подкалиберный (БПС)</option>
@@ -37,195 +39,450 @@
       <option value="HEAT">Кумулятивный (КС)</option>
       <option value="HE">Осколочно-фугасный (ОФС)</option>
     </select>
-    <label>Калибр <b id="calV"></b></label>
+    <label for="cal">Калибр <b id="calV"></b></label>
     <select id="cal">
       <option>20</option><option>37</option><option>45</option><option>57</option>
       <option>75</option><option selected>85</option><option>100</option><option>105</option>
       <option>120</option><option>122</option><option>125</option><option>152</option>
     </select>
-    <label>Наклон брони от вертикали <b id="angV"></b></label>
+    <label for="ang">Наклон брони от вертикали <b id="angV"></b></label>
     <input id="ang" type="range" min="0" max="85" value="30">
-    <label>Толщина брони <b id="thkV"></b></label>
+    <label for="thk">Толщина брони <b id="thkV"></b></label>
     <input id="thk" type="range" min="10" max="400" step="5" value="100">
-    <label>Дистанция <b id="distV"></b></label>
+    <label for="dist">Дистанция <b id="distV"></b></label>
     <input id="dist" type="range" min="100" max="3000" step="100" value="500">
-    <button id="fire">ОГОНЬ!</button>
+    <label for="play">Скорость воспроизведения <b id="playV"></b></label>
+    <input id="play" type="range" min="0" max="4" step="1" value="2">
+    <div class="btns"><button id="fire">ОГОНЬ!</button><button id="again" class="sec" title="Повторить тот же выстрел">↻</button></div>
     <div class="result" id="res"></div>
     <table id="stats"></table>
-    <div class="hint">Упрощённая модель: приведённая броня = толщина / cos(угол − нормализация). Есть рикошеты, нормализация, «перекрытие калибром» и случайный разброс бронепробития ±5%.</div>
+    <div class="hint">Вид — разрез брони. Упрощённая модель: приведённая броня = толщина / cos(угол − нормализация); скорость в броне падает как √(1 − путь/бронепробитие). Рикошеты, нормализация, перекрытие калибром, эрозия стержня БОПС, кумулятивная струя, тыльный откол.</div>
   </div>
-  <div class="panel"><canvas id="cv" width="800" height="500"></canvas></div>
+  <div class="panel view"><canvas id="cv" width="960" height="600"></canvas></div>
 </div>
 <script>
 // Параметры типов снарядов: пробитие на мм калибра, потеря пробития на 1 км,
 // нормализация (°), угол гарантированного рикошета (°), скорость (м/с)
 const SHELLS = {
-  AP:     { name:'ББ',   k:1.9,  loss:0.12, norm:5,  ric:70, v:800,  color:'#c8a050' },
-  APCR:   { name:'БПС',  k:2.6,  loss:0.25, norm:2,  ric:70, v:1050, color:'#d0d0d8' },
-  APFSDS: { name:'БОПС', k:4.6,  loss:0.06, norm:0,  ric:78, v:1650, color:'#9ab0c8' },
-  HEAT:   { name:'КС',   k:4.0,  loss:0,    norm:0,  ric:80, v:900,  color:'#c86060' },
-  HE:     { name:'ОФС',  k:0.17, loss:0,    norm:0,  ric:90, v:750,  color:'#70a060' },
+  AP:     { name:'ББ',   k:1.9,  loss:0.12, norm:5,  ric:70, v:800,  color:'#c9a24e' },
+  APCR:   { name:'БПС',  k:2.6,  loss:0.25, norm:2,  ric:70, v:1050, color:'#b8bcc6' },
+  APFSDS: { name:'БОПС', k:4.6,  loss:0.06, norm:0,  ric:78, v:1650, color:'#8fa4bd' },
+  HEAT:   { name:'КС',   k:4.0,  loss:0,    norm:0,  ric:80, v:900,  color:'#b85a50' },
+  HE:     { name:'ОФС',  k:0.17, loss:0,    norm:0,  ric:90, v:750,  color:'#6f9a5c' },
 };
+const PLAY = [0.25, 0.5, 1, 2, 4];
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d');
-const W = cv.width, H = cv.height, CX = 520, CY = 260;
+const W = cv.width, H = cv.height, CX = W * 0.56, CY = H * 0.5;
 const rad = d => d * Math.PI / 180;
+const gauss = x => Math.exp(-x * x);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+let rnd = Math.random;
 
 function updLabels() {
   $('calV').textContent = $('cal').value + ' мм';
   $('angV').textContent = $('ang').value + '°';
   $('thkV').textContent = $('thk').value + ' мм';
   $('distV').textContent = $('dist').value + ' м';
+  $('playV').textContent = '×' + PLAY[+$('play').value];
 }
 
-function compute() {
-  const s = SHELLS[$('type').value];
+function compute(seed) {
+  const type = $('type').value, s = SHELLS[type];
   const cal = +$('cal').value, ang = +$('ang').value, thk = +$('thk').value, dist = +$('dist').value;
   const basePen = s.k * cal * (1 - s.loss * dist / 1000);
-  const pen = basePen * (0.95 + Math.random() * 0.1);
+  const pen = basePen * (0.95 + seed * 0.1);
   const overmatch = cal > thk * 3;
   let norm = s.norm;
-  if (overmatch && (s.norm > 0)) norm *= 1.4 * cal / thk / 3;
-  const effAng = Math.max(0, ang - norm);
+  if (overmatch && s.norm > 0) norm *= 1.4 * cal / thk / 3;
+  norm = Math.min(norm, ang);
+  const effAng = ang - norm;
   const eff = thk / Math.cos(rad(Math.min(effAng, 89)));
   let outcome;
   if (!overmatch && ang >= s.ric) outcome = 'ric';
   else if (pen >= eff) outcome = 'pen';
   else outcome = 'nopen';
-  // ОФС может нанести урон без пробития, если броня тонкая
-  const heDamage = $('type').value === 'HE' && outcome === 'nopen' && thk < cal * 0.35;
-  return { s, cal, ang, thk, dist, pen, basePen, eff, effAng, norm, overmatch, outcome, heDamage };
+  const heDamage = type === 'HE' && outcome === 'nopen' && thk < cal * 0.35;
+  // геометрия снаряда (мм) и масштаб (px/мм)
+  let len = cal * 3.6, dia = cal;
+  if (type === 'APFSDS') { dia = cal * 0.25; len = cal * 5.5; }
+  if (type === 'APCR') len = cal * 3;
+  if (type === 'HEAT' || type === 'HE') len = cal * 4;
+  const sc = Math.min(3, 250 / (thk + cal * 1.6), 330 / len);
+  return { type, s, cal, ang, thk, dist, pen, basePen, eff, effAng, norm, overmatch, outcome, heDamage, len, dia, sc };
 }
 
-// Геометрия плиты: наклонена назад на угол ang, снаряд летит горизонтально
-function plateCorners(ang, thk) {
-  const h = 320, t = Math.max(6, Math.min(80, thk * 0.25));
-  const a = rad(ang), ux = Math.sin(a), uy = -Math.cos(a); // вдоль плиты (вверх)
-  const nx = Math.cos(a), ny = Math.sin(a);                 // нормаль вглубь
-  const p = (s, d) => [CX + ux * s + nx * d, CY + uy * s + ny * d];
-  return { pts: [p(-h/2, 0), p(h/2, 0), p(h/2, t), p(-h/2, t)], t, nx, ny, ux, uy };
-}
+// ---------- состояние симуляции (всё в мм и мкс, начало координат — точка попадания) ----------
+let sim = null, anim = null, lastSeed = 0.5;
 
-let anim = null, particles = [];
-function drawScene(st, r) {
-  ctx.fillStyle = '#0e1014'; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#1c2028'; ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const pc = plateCorners(r.ang, r.thk);
-  // плита
-  const g = ctx.createLinearGradient(pc.pts[0][0], pc.pts[0][1], pc.pts[3][0], pc.pts[3][1]);
-  g.addColorStop(0, '#6b7480'); g.addColorStop(1, '#3d444d');
-  ctx.fillStyle = g; ctx.beginPath(); pc.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#8a939e'; ctx.stroke();
-  // пробоина
-  if (st.hole) {
-    ctx.fillStyle = '#0e1014'; ctx.beginPath();
-    ctx.ellipse(st.hole.x, st.hole.y, st.hole.r, st.hole.r * 0.5, rad(r.ang) + Math.PI/2, 0, Math.PI*2); ctx.fill();
-  }
-  if (st.dent) {
-    ctx.fillStyle = '#ffb04088'; ctx.beginPath(); ctx.arc(st.dent.x, st.dent.y, st.dent.r, 0, Math.PI*2); ctx.fill();
-  }
-  // нормаль и угол
-  ctx.setLineDash([5, 5]); ctx.strokeStyle = '#4a90d9';
-  ctx.beginPath(); ctx.moveTo(CX - pc.nx * 120, CY - pc.ny * 120); ctx.lineTo(CX, CY); ctx.stroke();
-  ctx.strokeStyle = '#555'; ctx.beginPath(); ctx.moveTo(40, CY); ctx.lineTo(CX, CY); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle = '#4a90d9'; ctx.font = '13px system-ui';
-  ctx.fillText('нормаль', CX - pc.nx * 120 - 20, CY - pc.ny * 120 - 6);
-  ctx.fillStyle = '#9aa3ad';
-  ctx.fillText(`угол ${r.ang}°  ·  приведённая броня ${r.eff.toFixed(0)} мм`, 20, H - 20);
-  // снаряд
-  if (st.shell) {
-    const { x, y, dir } = st.shell, len = Math.max(14, r.cal * 0.35), w = Math.max(4, r.cal * (r.s === SHELLS.APFSDS ? 0.06 : 0.12));
-    ctx.save(); ctx.translate(x, y); ctx.rotate(dir);
-    ctx.fillStyle = r.s.color; ctx.beginPath();
-    ctx.moveTo(len/2, 0); ctx.lineTo(len/4, -w/2); ctx.lineTo(-len/2, -w/2); ctx.lineTo(-len/2, w/2); ctx.lineTo(len/4, w/2); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    // трассер
-    ctx.strokeStyle = 'rgba(255,200,120,0.35)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x - Math.cos(dir) * 60, y - Math.sin(dir) * 60); ctx.lineTo(x, y); ctx.stroke(); ctx.lineWidth = 1;
-  }
-  // частицы
-  particles.forEach(p => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.s, p.s); });
-  ctx.globalAlpha = 1;
-  if (st.flash > 0) { ctx.fillStyle = `rgba(255,220,150,${st.flash})`; ctx.beginPath(); ctx.arc(st.fx, st.fy, 60 * st.flash + 10, 0, Math.PI*2); ctx.fill(); }
-}
-
-function burst(x, y, n, dirA, spread, speed, colors) {
-  for (let i = 0; i < n; i++) {
-    const a = dirA + (Math.random() - 0.5) * spread, v = speed * (0.4 + Math.random());
-    particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, s: 2 + Math.random() * 3, c: colors[i % colors.length] });
-  }
-}
-
-function fire() {
-  cancelAnimationFrame(anim); particles = [];
-  const r = compute();
-  $('res').textContent = ''; showStats(r, false);
-  const pc = plateCorners(r.ang, r.thk);
-  const st = { shell: { x: 30, y: CY, dir: 0 }, flash: 0, phase: 'fly' };
-  const speed = 6 + r.s.v / 120;
-  let t = 0;
-  const step = () => {
-    t++;
-    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.015; });
-    particles = particles.filter(p => p.life > 0);
-    if (st.flash > 0) st.flash -= 0.04;
-    if (st.shell) {
-      st.shell.x += Math.cos(st.shell.dir) * speed; st.shell.y += Math.sin(st.shell.dir) * speed;
-      if (st.phase === 'fly' && st.shell.x >= CX) impact(r, st, pc);
-      if (st.phase === 'through' && st.shell.x > W + 50) st.shell = null;
-      if (st.phase === 'ric' && (st.shell.y < -50 || st.shell.x < -50)) st.shell = null;
-    }
-    drawScene(st, r);
-    if (st.shell || particles.length || st.flash > 0) anim = requestAnimationFrame(step);
+function newSim(r) {
+  const a = rad(r.ang);
+  const u = { x: Math.sin(a), y: -Math.cos(a) }; // вдоль плиты (вверх)
+  const n = { x: Math.cos(a), y: Math.sin(a) };  // нормаль внутрь плиты
+  const v0 = r.s.v / 1000;                        // мм/мкс
+  return {
+    r, a, u, n, v0, phase: 'approach', t: 0, tImpact: null, tEvent: null,
+    shell: { x: -(CX - 30) / r.sc + r.len, y: 0, th: 0, v: v0, len: r.len, mush: 0, alive: true, p: 0 },
+    cap: r.outcome === 'pen' ? Math.max(r.pen, r.eff * 1.08) : Math.min(r.pen, r.eff * 0.97),
+    chan: null, chanW: 0, exitL: null, bulge: 0, bulgeS: 0, dent: 0, lip: 0, groove: 0, petals: 0,
+    jet: 0, heat: 0, shake: 0, cracks: [], parts: [], plug: null, flash: 0, fx: 0, fy: 0, done: false, ramp: 1,
   };
-  step();
 }
 
-function impact(r, st, pc) {
-  st.fx = CX; st.fy = CY; st.flash = 1; st.shell.x = CX;
-  const back = Math.atan2(-pc.ny, -pc.nx);
-  if (r.s === SHELLS.HE) {
-    st.shell = null; st.phase = 'done';
-    burst(CX, CY, 120, Math.PI, Math.PI * 1.6, 5, ['#ffcc55', '#ff7733', '#777']);
-    if (r.outcome === 'pen') { st.hole = { x: CX, y: CY, r: r.cal * 0.25 }; burst(CX + 10, CY, 50, 0, 1.2, 4, ['#ffaa33', '#999']); }
-    else st.dent = { x: CX, y: CY, r: 10 };
-  } else if (r.outcome === 'ric') {
-    st.phase = 'ric';
-    // отражение горизонтального вектора от наклонной плиты
-    st.shell.dir = 2 * rad(r.ang) - Math.PI;
-    st.dent = { x: CX, y: CY, r: 6 };
-    burst(CX, CY, 40, st.shell.dir, 0.8, 5, ['#ffdd88', '#ffaa44']);
-  } else if (r.outcome === 'pen') {
-    st.phase = 'through';
-    const pcT = pc.t;
-    st.hole = { x: CX + pc.nx * pcT / 2, y: CY + pc.ny * pcT / 2, r: Math.max(5, r.cal * (r.s === SHELLS.HEAT ? 0.08 : 0.15)) };
-    // нормализация поворачивает снаряд к нормали
-    st.shell.dir = rad(r.ang - r.effAng);
-    st.shell.x = CX + pc.nx * pcT + 4;
-    if (r.s === SHELLS.HEAT) {
-      burst(CX + pc.nx * pcT, CY + pc.ny * pcT, 80, 0, 0.5, 9, ['#fff2a0', '#ff8833', '#ff4422']);
-      st.shell = null; st.phase = 'done';
-    }
-    burst(CX + pc.nx * pcT, CY + pc.ny * pcT, 70, 0, 1.4, 6, ['#ffbb55', '#bbb', '#888']);
-    burst(CX, CY, 20, back, 1.2, 3, ['#ffdd88']);
-  } else {
-    st.shell = null; st.phase = 'done';
-    st.dent = { x: CX, y: CY, r: 9 };
-    burst(CX, CY, 60, Math.PI, Math.PI * 1.2, 4, ['#ffdd88', '#ffaa44', '#aaa']);
+const toL = (S, x, y) => ({ s: x * S.u.x + y * S.u.y, d: x * S.n.x + y * S.n.y });
+const toW = (S, s, d) => ({ x: S.u.x * s + S.n.x * d, y: S.u.y * s + S.n.y * d });
+const px = (S, x, y) => [CX + x * S.r.sc, CY + y * S.r.sc];
+
+function spawn(S, x, y, ang, spread, speed, n, kind, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = ang + (rnd() - 0.5) * spread, v = speed * (0.3 + rnd() * 0.9);
+    const life = kind === 'spark' ? 60 + rnd() * 120 : kind === 'frag' ? 200 + rnd() * 300 : 300 + rnd() * 500;
+    S.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, kind,
+      size: kind === 'smoke' ? 6 + rnd() * 10 : kind === 'frag' ? 1.5 + rnd() * 3.5 : 1 + rnd() * 1.5,
+      rot: rnd() * 6, c: colors[i % colors.length] });
   }
-  showStats(r, true);
+}
+
+function frontD(S, s) { // смещение лицевой поверхности (мм, + вглубь)
+  const w = S.r.dia;
+  let d = S.dent * gauss(s / (w * 0.9)) - S.lip * (gauss((s - w * 0.8) / (w * 0.35)) + gauss((s + w * 0.8) / (w * 0.35)));
+  if (S.groove > 0 && s > -w * 0.3 && s < S.groove) d += w * 0.05 * Math.sin(Math.PI * clamp((s + w * 0.3) / (S.groove + w * 0.3), 0, 1));
+  return d;
+}
+function backD(S, s) { return S.r.thk + S.bulge * gauss((s - S.bulgeS) / (S.r.dia * 0.55)); }
+
+function step() {
+  const S = sim, r = S.r, sh = S.shell, play = PLAY[+$('play').value];
+  // шаг времени: цель — заданное смещение в пикселях за кадр (замедленная съёмка у брони)
+  let pxTarget, ref = S.v0;
+  if (S.phase === 'approach') pxTarget = clamp(-sh.x * r.sc / 25, 1.2, 14);
+  else if (S.phase === 'jet') { pxTarget = 1.6; ref = 8; }
+  else pxTarget = 1.1;
+  let dt = play * pxTarget / (ref * r.sc);
+  if (S.done) { S.ramp = Math.min(S.ramp * 1.035, 12); dt *= S.ramp; }
+  S.dt = dt; S.t += dt;
+
+  if (S.phase === 'approach') {
+    sh.x += sh.v * dt;
+    if (sh.x >= 0) { sh.x = 0; impact(S); }
+  } else if (S.phase === 'pen') penetrate(S, dt);
+  else if (S.phase === 'exit' || S.phase === 'ricfly') { sh.x += Math.cos(sh.th) * sh.v * dt; sh.y += Math.sin(sh.th) * sh.v * dt; }
+  else if (S.phase === 'ric') ricochet(S, dt);
+  else if (S.phase === 'jet') jetStep(S, dt);
+
+  if (S.phase === 'stopped') sh.mush = Math.min(1, sh.mush + dt / 40);
+  if (S.phase === 'exit' || S.exitL) S.petals = Math.min(1, S.petals + dt / 120);
+  if (S.plug) { S.plug.x += S.plug.vx * dt; S.plug.y += S.plug.vy * dt; S.plug.rot += S.plug.w * dt; }
+  if (S.phase === 'he') { S.dent = Math.min(S.heDent, S.dent + dt * 0.4); if (S.dent >= S.heDent) finish(S); }
+
+  for (const p of S.parts) {
+    p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+    if (p.kind === 'smoke') { p.vx *= Math.pow(0.995, dt); p.vy *= Math.pow(0.995, dt); p.size += dt * 0.08; }
+  }
+  S.parts = S.parts.filter(p => p.life > 0);
+  S.heat = Math.max(0, S.heat - dt / 2500);
+  S.flash = Math.max(0, S.flash - dt / 60);
+  S.shake *= 0.9;
+
+  draw(S);
+  const offscreen = Math.abs(sh.x * r.sc) > W || Math.abs(sh.y * r.sc) > H;
+  if (!(S.done && S.parts.length === 0 && (offscreen || !sh.alive || S.phase === 'stopped') && (!S.plug || Math.abs(S.plug.x * r.sc) > W)))
+    anim = requestAnimationFrame(step);
+  else showResult(r);
+}
+
+function impact(S) {
+  const r = S.r, sh = S.shell;
+  S.tImpact = S.t; S.shake = 8; S.flash = 1;
+  spawn(S, 0, 0, Math.PI + S.a * 0.0, 2.2, S.v0 * 0.5, 40, 'spark', ['#fff2b0', '#ffc860', '#ff9a40']);
+  if (r.type === 'HE') {
+    S.phase = 'he'; sh.alive = false; S.heat = 1;
+    S.heDent = r.outcome === 'pen' ? r.thk * 1.3 : Math.min(r.thk * 0.85, r.pen * 0.6 + r.dia * 0.05);
+    if (r.outcome === 'pen') { S.chanW = r.dia * 0.4; }
+    spawn(S, -2, 0, Math.PI, 3.6, S.v0 * 0.6, 120, 'spark', ['#fff6c0', '#ffb040', '#ff6020']);
+    spawn(S, -2, 0, Math.PI, 2.6, S.v0 * 0.35, 60, 'frag', ['#6d6a66', '#8a847c', '#4e4b48']);
+    spawn(S, -2, 0, Math.PI, 2.8, S.v0 * 0.12, 30, 'smoke', ['#3a3633', '#4a4440', '#2b2826']);
+    S.flash = 2.5;
+  } else if (r.outcome === 'ric') {
+    S.phase = 'ric'; S.ricS = 0;
+  } else if (r.type === 'HEAT') {
+    S.phase = 'jet'; S.jet = 0; S.heat = 1; S.chanW = r.dia * 0.09;
+    S.cap = r.outcome === 'pen' ? Math.max(r.pen, r.eff * 1.15) : Math.min(r.pen, r.eff * 0.95);
+    spawn(S, -r.dia * 0.3, 0, Math.PI, 3, S.v0 * 0.5, 90, 'spark', ['#fff6c0', '#ffb040', '#ff6020']);
+    spawn(S, -r.dia * 0.3, 0, Math.PI, 2.4, S.v0 * 0.1, 26, 'smoke', ['#3a3633', '#4a4440']);
+    S.flash = 2;
+  } else {
+    S.phase = 'pen'; S.chanW = r.dia * (r.type === 'APFSDS' ? 0.65 : 0.52);
+  }
+}
+
+function penetrate(S, dt) {
+  const r = S.r, sh = S.shell;
+  const thN = rad(r.norm);
+  sh.th = thN * Math.min(1, sh.p / r.dia);
+  sh.v = S.v0 * Math.sqrt(Math.max(0, 1 - sh.p / S.cap));
+  const ds = sh.v * dt;
+  sh.p += ds; sh.x += Math.cos(sh.th) * ds; sh.y += Math.sin(sh.th) * ds;
+  if (r.type === 'APFSDS') sh.len = Math.max(r.len * 0.25, sh.len - ds * 0.55); // эрозия стержня
+  else sh.mush = Math.min(0.35, sh.p / r.thk * 0.3);
+  S.lip = Math.min(sh.p, r.dia) * 0.05;
+  S.heat = 1;
+  const L = toL(S, sh.x, sh.y);
+  S.chan = L;
+  // тыльная выпучина при приближении к тыльной стороне
+  const zone = r.dia * 0.8, rem = r.thk - L.d;
+  if (rem < zone) { S.bulge = Math.max(S.bulge, (1 - rem / zone) * r.dia * 0.22); S.bulgeS = L.s; }
+  if (rnd() < 0.6) spawn(S, 0, 0, Math.PI + S.a, 1.6, S.v0 * 0.3, 2, 'spark', ['#ffd070', '#ff9a40']);
+  if (L.d >= r.thk) { // выход из брони
+    S.phase = 'exit'; S.exitL = { s: L.s, d: r.thk }; S.tEvent = S.t; S.shake = 5; finish(S);
+    const e = toW(S, L.s, r.thk), dir = sh.th;
+    spawn(S, e.x, e.y, dir, 1.1, sh.v * 0.9, 70, 'frag', ['#8b8f96', '#a7abb2', '#6c7077']);
+    spawn(S, e.x, e.y, dir, 1.4, sh.v * 1.1, 60, 'spark', ['#fff2b0', '#ffc860', '#ff7a30']);
+    if (r.type !== 'APFSDS' && r.thk < r.dia * 1.2) {
+      S.plug = { x: e.x, y: e.y, vx: Math.cos(dir) * sh.v * 0.8, vy: Math.sin(dir) * sh.v * 0.8 - 0.02, rot: 0, w: (rnd() - 0.5) * 0.01, w2: S.chanW, h: Math.min(r.thk * 0.7, r.dia * 0.5) };
+    }
+  } else if (sh.p >= S.cap * 0.995 || sh.v < S.v0 * 0.03) { // застрял
+    S.phase = 'stopped'; S.tEvent = S.t; sh.v = 0; S.shake = 3; finish(S);
+    spawn(S, 0, 0, Math.PI + S.a, 1.2, S.v0 * 0.25, 30, 'frag', ['#8b8f96', r.s.color]);
+    if (rem < r.dia * 0.6) { // тыльный откол / трещины
+      for (let i = 0; i < 6; i++) S.cracks.push({ a: (rnd() - 0.5) * 2.4, l: r.dia * (0.3 + rnd() * 0.7) });
+      if (rem < r.dia * 0.35) { const e = toW(S, L.s, r.thk + S.bulge); spawn(S, e.x, e.y, S.a, 1.5, S.v0 * 0.2, 25, 'frag', ['#8b8f96', '#6c7077']); }
+    }
+  }
+}
+
+function jetStep(S, dt) {
+  const r = S.r, sh = S.shell;
+  S.jet += 8 * dt;
+  sh.len = Math.max(r.len * 0.35, sh.len - dt * 0.6); sh.mush = Math.min(1, sh.mush + dt / 60);
+  const L = toL(S, S.jet, 0);
+  const rem = r.thk - L.d, zone = r.dia * 0.6;
+  if (rem < zone) { S.bulge = Math.max(S.bulge, (1 - rem / zone) * r.dia * 0.15); S.bulgeS = L.s; }
+  S.chan = L; S.lip = r.dia * 0.06;
+  if (L.d >= r.thk) {
+    S.phase = 'exit'; S.exitL = { s: L.s, d: r.thk }; sh.alive = false; finish(S); S.shake = 4;
+    const e = toW(S, L.s, r.thk);
+    spawn(S, e.x, e.y, 0, 0.8, 4, 90, 'spark', ['#ffffff', '#fff2b0', '#ffb040']);
+    spawn(S, e.x, e.y, 0, 1.0, 1.5, 40, 'frag', ['#8b8f96', '#a7abb2']);
+  } else if (S.jet >= S.cap) {
+    S.phase = 'stopped'; sh.alive = false; finish(S);
+    if (rem < r.dia * 0.3) for (let i = 0; i < 4; i++) S.cracks.push({ a: (rnd() - 0.5) * 2, l: r.dia * (0.2 + rnd() * 0.4) });
+  }
+}
+
+function ricochet(S, dt) {
+  const r = S.r, sh = S.shell, along = S.a - Math.PI / 2, out = 2 * S.a - Math.PI;
+  const g = r.dia * 2.2;
+  sh.v = S.v0 * 0.85;
+  if (S.ricS < g) {
+    const k = S.ricS / g;
+    sh.th = along * Math.min(1, k * 3) + (out - along) * Math.max(0, (k - 0.6) / 0.4);
+    S.ricS += sh.v * dt; S.groove = S.ricS;
+    const w = toW(S, S.ricS, -r.dia * 0.38);
+    sh.x = w.x; sh.y = w.y;
+    spawn(S, sh.x, sh.y, out, 0.9, sh.v * 0.6, 3, 'spark', ['#fff2b0', '#ffc860']);
+  } else { sh.th = out; S.phase = 'ricfly'; finish(S); }
+}
+
+function finish(S) { S.done = true; if (S.tEvent == null) S.tEvent = S.t; }
+
+// ---------- отрисовка ----------
+function poly(pts) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); }
+
+function draw(S) {
+  const r = S.r, sc = r.sc;
+  ctx.save();
+  ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, W, H);
+  if (S.shake > 0.3) ctx.translate((rnd() - 0.5) * S.shake, (rnd() - 0.5) * S.shake);
+  // сетка 10 см
+  ctx.strokeStyle = '#161a20'; ctx.lineWidth = 1;
+  const g = 100 * sc;
+  if (g > 8) {
+    for (let x = CX % g; x < W; x += g) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = CY % g; y < H; y += g) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  }
+  // линия выстрела и нормаль
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = '#2a3038'; ctx.beginPath(); ctx.moveTo(0, CY); ctx.lineTo(CX, CY); ctx.stroke();
+  ctx.strokeStyle = '#2d5a88'; const nl = 140;
+  ctx.beginPath(); ctx.moveTo(CX - S.n.x * nl, CY - S.n.y * nl); ctx.lineTo(CX, CY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // плита в разрезе
+  const span = Math.hypot(W, H) / sc;
+  const N = 220, front = [], back = [];
+  for (let i = 0; i <= N; i++) {
+    const s = -span + 2 * span * i / N;
+    const f = toW(S, s, frontD(S, s)), b = toW(S, s, backD(S, s));
+    front.push(px(S, f.x, f.y)); back.push(px(S, b.x, b.y));
+  }
+  const platePts = front.concat(back.reverse());
+  const gr = ctx.createLinearGradient(...px(S, 0, 0), ...px(S, S.n.x * r.thk, S.n.y * r.thk));
+  gr.addColorStop(0, '#7c8590'); gr.addColorStop(0.5, '#5d656f'); gr.addColorStop(1, '#474e57');
+  ctx.fillStyle = gr; poly(platePts); ctx.fill();
+  // штриховка разреза
+  ctx.save(); poly(platePts); ctx.clip();
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  for (let k = -H; k < W + H; k += 9) { ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k - H, H); ctx.stroke(); }
+  // раскалённая зона
+  if (S.heat > 0 && S.chan) {
+    const t = toW(S, S.chan.s, S.chan.d), [hx, hy] = px(S, t.x, t.y);
+    const rg = ctx.createRadialGradient(hx, hy, 0, hx, hy, r.dia * sc * 1.6);
+    rg.addColorStop(0, `rgba(255,170,60,${0.55 * S.heat})`); rg.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+    const [ex, ey] = px(S, 0, 0), rg2 = ctx.createRadialGradient(ex, ey, 0, ex, ey, r.dia * sc * 1.2);
+    rg2.addColorStop(0, `rgba(255,140,40,${0.4 * S.heat})`); rg2.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = rg2; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#9aa3ae'; ctx.lineWidth = 1.2; poly(platePts); ctx.stroke();
+  let chanPts = null;
+
+  // канал пробоины
+  if (S.chan && S.chanW > 0) {
+    const end = S.exitL ? { s: S.exitL.s + (S.exitL.s - 0) * 0.02, d: r.thk + S.bulge + 2 } : S.chan;
+    const len = Math.hypot(end.s, end.d) || 1, ps = -end.d / len, pd = end.s / len, w = S.chanW / 2;
+    const q = [[-ps * w * 1.35, -pd * w * 1.35 - 1], [end.s - ps * w, end.d - pd * w], [end.s + ps * w, end.d + pd * w], [ps * w * 1.35, pd * w * 1.35 - 1]]
+      .map(([s, d]) => { const p = toW(S, s, d); return px(S, p.x, p.y); });
+    chanPts = q;
+    ctx.fillStyle = '#0b0d10'; poly(q); ctx.fill();
+    ctx.strokeStyle = `rgba(255,150,60,${0.25 + 0.6 * S.heat})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(...q[0]); ctx.lineTo(...q[1]); ctx.moveTo(...q[3]); ctx.lineTo(...q[2]); ctx.stroke();
+  }
+  // кратер ОФС
+  if (S.phase === 'he' || (r.type === 'HE' && S.dent > 0)) {
+    if (r.outcome === 'pen' && S.dent > r.thk) {
+      const q = [[-S.chanW, -2], [-S.chanW * 0.6, r.thk + 3], [S.chanW * 0.6, r.thk + 3], [S.chanW, -2]].map(([s, d]) => { const p = toW(S, s, d); return px(S, p.x, p.y); });
+      ctx.fillStyle = '#0b0d10'; poly(q); ctx.fill();
+    }
+  }
+  // лепестки на выходе
+  if (S.exitL && S.petals > 0) {
+    const w = Math.max(S.chanW, r.dia * 0.3) / 2, L = r.dia * (r.type === 'HEAT' ? 0.25 : 0.55) * S.petals, b = r.thk + S.bulge * 0.6;
+    ctx.fillStyle = '#56606a'; ctx.strokeStyle = '#9aa3ae';
+    for (const sgn of [-1, 1]) {
+      const base1 = S.exitL.s + sgn * w, base2 = S.exitL.s + sgn * (w + r.dia * 0.35);
+      const tip = { s: S.exitL.s + sgn * (w + L * 0.35), d: b + L };
+      const q = [[base1, b - 2], [base2, b - 1], [tip.s, tip.d]].map(([s, d]) => { const p = toW(S, s, d); return px(S, p.x, p.y); });
+      poly(q); ctx.fill(); ctx.stroke();
+    }
+  }
+  // трещины
+  if (S.cracks.length) {
+    ctx.strokeStyle = '#1a1d22'; ctx.lineWidth = 1.4;
+    for (const c of S.cracks) {
+      const a = toW(S, S.bulgeS, backD(S, S.bulgeS)), d = toW(S, S.bulgeS + Math.sin(c.a) * c.l, backD(S, S.bulgeS) - Math.cos(c.a) * c.l * 0.6);
+      ctx.beginPath(); ctx.moveTo(...px(S, a.x, a.y)); ctx.lineTo(...px(S, d.x, d.y)); ctx.stroke();
+    }
+  }
+  // пробка
+  if (S.plug) {
+    const p = S.plug, [x, y] = px(S, p.x, p.y);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(S.a + p.rot);
+    ctx.fillStyle = '#6c747e'; ctx.strokeStyle = '#a7abb2';
+    ctx.fillRect(-p.h * sc / 2, -p.w2 * sc / 2, p.h * sc, p.w2 * sc); ctx.strokeRect(-p.h * sc / 2, -p.w2 * sc / 2, p.h * sc, p.w2 * sc);
+    ctx.restore();
+  }
+  // кумулятивная струя
+  if (r.type === 'HEAT' && S.jet > 0 && (S.phase === 'jet' || S.t - (S.tEvent || 0) < 40)) {
+    const [x0, y0] = px(S, -r.dia * 0.3, 0), [x1, y1] = px(S, S.jet, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(255,200,120,0.35)'; ctx.lineWidth = Math.max(4, r.dia * sc * 0.18); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = '#fffbe8'; ctx.lineWidth = Math.max(1.5, r.dia * sc * 0.05); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.restore();
+  }
+  // снаряд виден снаружи плиты и внутри канала (вид в разрезе)
+  ctx.save(); ctx.beginPath(); ctx.rect(-50, -50, W + 100, H + 100);
+  platePts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
+  ctx.clip('evenodd'); drawShell(S); ctx.restore();
+  if (chanPts) { ctx.save(); poly(chanPts); ctx.clip(); drawShell(S); ctx.restore(); }
+  // частицы
+  ctx.save(); ctx.globalCompositeOperation = 'source-over';
+  for (const p of S.parts) {
+    const [x, y] = px(S, p.x, p.y), k = p.life / p.max;
+    if (p.kind === 'smoke') { ctx.globalAlpha = 0.35 * k; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(x, y, p.size, 0, 7); ctx.fill(); }
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of S.parts) {
+    if (p.kind !== 'spark') continue;
+    const [x, y] = px(S, p.x, p.y), k = p.life / p.max, tl = 6 / (Math.hypot(p.vx, p.vy) * sc + 1e-6);
+    ctx.globalAlpha = k; ctx.strokeStyle = p.c; ctx.lineWidth = p.size;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - p.vx * sc * tl * 1.5, y - p.vy * sc * tl * 1.5); ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  for (const p of S.parts) {
+    if (p.kind !== 'frag') continue;
+    const [x, y] = px(S, p.x, p.y);
+    ctx.globalAlpha = Math.min(1, p.life / p.max * 2); ctx.fillStyle = p.c;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(p.rot + p.life * 0.01); ctx.fillRect(-p.size, -p.size * 0.6, p.size * 2, p.size * 1.2); ctx.restore();
+  }
+  ctx.restore();
+  if (S.flash > 0) {
+    const f = Math.min(1, S.flash), [fx, fy] = px(S, -r.dia * 0.2, 0);
+    const rg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 30 + r.dia * sc * 1.5 * Math.min(2, S.flash));
+    rg.addColorStop(0, `rgba(255,250,220,${f})`); rg.addColorStop(0.4, `rgba(255,170,60,${0.6 * f})`); rg.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+  hud(S);
+}
+
+function drawShell(S) {
+  const r = S.r, sh = S.shell, sc = r.sc;
+  if (!sh.alive) return;
+  const [x, y] = px(S, sh.x, sh.y);
+  const m = sh.mush, L = sh.len * sc * (1 - 0.45 * m), D = r.dia * sc, nose = D * (1 + 0.7 * m);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(sh.th);
+  // след движения
+  if (S.phase === 'approach' || S.phase === 'exit' || S.phase === 'ricfly') {
+    const tg = ctx.createLinearGradient(-L - 120, 0, -L, 0);
+    tg.addColorStop(0, 'rgba(200,210,230,0)'); tg.addColorStop(1, 'rgba(200,210,230,0.18)');
+    ctx.fillStyle = tg; ctx.fillRect(-L - 120, -D / 2, 120, D);
+  }
+  const body = r.s.color, dark = '#2a2d33';
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
+  if (r.type === 'APFSDS') {
+    ctx.fillStyle = body; ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-D * 2, -nose / 2); ctx.lineTo(-L, -D / 2); ctx.lineTo(-L, D / 2); ctx.lineTo(-D * 2, nose / 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#6b7c90'; // стабилизатор
+    const fl = Math.min(L * 0.15, D * 6);
+    ctx.beginPath(); ctx.moveTo(-L, -D / 2); ctx.lineTo(-L + fl, -D / 2); ctx.lineTo(-L - fl * 0.2, -D * 2.2); ctx.lineTo(-L - fl * 0.25, -D * 2.2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-L, D / 2); ctx.lineTo(-L + fl, D / 2); ctx.lineTo(-L - fl * 0.2, D * 2.2); ctx.lineTo(-L - fl * 0.25, D * 2.2); ctx.closePath(); ctx.fill();
+  } else {
+    const nl = r.type === 'HEAT' ? D * 1.4 : r.type === 'HE' ? D * 1.3 : D * 0.9;
+    ctx.fillStyle = body; ctx.beginPath();
+    ctx.moveTo(-nl * (m * 0.8), 0);
+    ctx.quadraticCurveTo(-nl * 0.3, -nose / 2, -nl, -Math.max(D, nose) / 2);
+    ctx.lineTo(-L, -D / 2); ctx.lineTo(-L, D / 2); ctx.lineTo(-nl, Math.max(D, nose) / 2);
+    ctx.quadraticCurveTo(-nl * 0.3, nose / 2, -nl * (m * 0.8), 0); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#9c6b3a'; ctx.fillRect(-L * 0.78, -D / 2 - 1, D * 0.25, D + 2); // ведущий поясок
+    if (r.type === 'APCR') { ctx.fillStyle = dark; ctx.fillRect(-nl - D * 1.1, -D * 0.17, D * 1.4, D * 0.34); }
+    if (r.type === 'HE') { ctx.fillStyle = '#c0c4ca'; ctx.fillRect(-D * 0.35, -D * 0.12, D * 0.35, D * 0.24); }
+    if (r.type === 'HEAT') { ctx.strokeStyle = '#3a2a28'; ctx.beginPath(); ctx.moveTo(-nl, -D * 0.38); ctx.lineTo(-nl - D * 0.6, 0); ctx.lineTo(-nl, D * 0.38); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+
+function hud(S) {
+  const r = S.r, sh = S.shell;
+  ctx.font = '14px ui-monospace, Menlo, monospace'; ctx.fillStyle = '#c9d1db';
+  const t = S.tImpact == null ? (S.t - S.t) : S.t - S.tImpact;
+  const lines = [];
+  lines.push(S.tImpact == null ? 'до удара' : `t = ${t.toFixed(1)} мкс после удара`);
+  if (r.type === 'HEAT' && S.jet > 0) lines.push(`струя: ${(S.jet).toFixed(0)} мм`);
+  else lines.push(`v = ${(sh.v * 1000).toFixed(0)} м/с`);
+  const depth = S.chan ? Math.max(0, Math.min(r.thk, S.chan.d)) : 0;
+  lines.push(`глубина: ${depth.toFixed(0)} / ${r.thk} мм`);
+  lines.forEach((l, i) => ctx.fillText(l, 16, 26 + i * 20));
+  const slow = 1e6 / (Math.max(S.dt || 1, 1e-6) * 60);
+  ctx.textAlign = 'right'; ctx.fillStyle = '#f0a030';
+  ctx.fillText(`ЗАМЕДЛЕНИЕ ×${Math.round(slow).toLocaleString('ru-RU')}`, W - 16, 26);
+  ctx.fillStyle = '#7d8793';
+  ctx.fillText(`угол ${r.ang}° · приведённая ${r.eff.toFixed(0)} мм · сетка 10 см`, W - 16, H - 14);
+  ctx.textAlign = 'left';
 }
 
 function showStats(r, final) {
-  const map = { pen: ['ПРОБИТИЕ!', 'var(--ok)'], nopen: ['НЕ ПРОБИЛ', 'var(--bad)'], ric: ['РИКОШЕТ', 'var(--warn)'] };
-  if (final) {
-    let [txt, col] = map[r.outcome];
-    if (r.heDamage) { txt = 'НЕ ПРОБИЛ (урон фугасом)'; col = 'var(--warn)'; }
-    $('res').textContent = txt; $('res').style.color = col;
-  }
   const rows = [
     ['Снаряд', `${r.cal} мм ${r.s.name}`],
     ['Скорость', `${r.s.v} м/с`],
@@ -238,15 +495,33 @@ function showStats(r, final) {
   ];
   $('stats').innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
 }
+function showResult(r) {
+  const map = { pen: ['ПРОБИТИЕ!', 'var(--ok)'], nopen: ['НЕ ПРОБИЛ', 'var(--bad)'], ric: ['РИКОШЕТ', 'var(--warn)'] };
+  let [txt, col] = map[r.outcome];
+  if (r.heDamage) { txt = 'НЕ ПРОБИЛ (урон фугасом)'; col = 'var(--warn)'; }
+  $('res').textContent = txt; $('res').style.color = col;
+  showStats(r, true);
+}
 
-['type', 'cal', 'ang', 'thk', 'dist'].forEach(id => $(id).addEventListener('input', () => {
-  updLabels(); cancelAnimationFrame(anim); particles = [];
-  const r = compute(); showStats(r, false); $('res').textContent = '';
-  drawScene({ shell: { x: 30, y: CY, dir: 0 } }, r);
-}));
-$('fire').onclick = fire;
-updLabels();
-{ const r = compute(); showStats(r, false); drawScene({ shell: { x: 30, y: CY, dir: 0 } }, r); }
+function start(seed) {
+  cancelAnimationFrame(anim);
+  lastSeed = seed;
+  const r = compute(seed);
+  sim = newSim(r);
+  $('res').textContent = ''; showStats(r, false);
+  anim = requestAnimationFrame(step);
+}
+function preview() {
+  cancelAnimationFrame(anim);
+  const r = compute(lastSeed); sim = newSim(r); sim.dt = 1;
+  $('res').textContent = ''; showStats(r, false); draw(sim);
+}
+
+['type', 'cal', 'ang', 'thk', 'dist'].forEach(id => $(id).addEventListener('input', () => { updLabels(); preview(); }));
+$('play').addEventListener('input', updLabels);
+$('fire').onclick = () => start(Math.random());
+$('again').onclick = () => start(lastSeed);
+updLabels(); preview();
 </script>
 </body>
 </html>
