@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Симулятор пробития брони</title>
+<style>
+  :root { --bg:#14171c; --panel:#1e232b; --text:#e6e8eb; --muted:#9aa3ad; --accent:#f0a030; --ok:#4caf50; --bad:#e04848; --warn:#e0c040; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; display:grid; grid-template-columns:300px 1fr; gap:16px; }
+  @media (max-width:800px) { .wrap { grid-template-columns:1fr; } }
+  h1 { font-size:20px; margin:0 0 12px; grid-column:1/-1; }
+  .panel { background:var(--panel); border-radius:10px; padding:14px; }
+  label { display:block; margin:10px 0 4px; color:var(--muted); font-size:13px; }
+  label b { color:var(--text); float:right; }
+  select, input[type=range] { width:100%; }
+  select { background:#2a313b; color:var(--text); border:1px solid #3a424e; border-radius:6px; padding:6px; }
+  button { margin-top:14px; width:100%; padding:10px; border:0; border-radius:8px; background:var(--accent); color:#1a1a1a; font-weight:700; font-size:16px; cursor:pointer; }
+  canvas { width:100%; height:auto; background:#0e1014; border-radius:10px; display:block; }
+  .result { margin-top:12px; font-size:22px; font-weight:800; min-height:30px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:14px; }
+  td { padding:4px 0; border-bottom:1px solid #2c333d; }
+  td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+  .hint { color:var(--muted); font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💥 Симулятор пробития брони снарядом</h1>
+  <div class="panel">
+    <label>Тип снаряда</label>
+    <select id="type">
+      <option value="AP">Бронебойный (ББ)</option>
+      <option value="APCR">Подкалиберный (БПС)</option>
+      <option value="APFSDS">Оперённый подкалиберный (БОПС)</option>
+      <option value="HEAT">Кумулятивный (КС)</option>
+      <option value="HE">Осколочно-фугасный (ОФС)</option>
+    </select>
+    <label>Калибр <b id="calV"></b></label>
+    <select id="cal">
+      <option>20</option><option>37</option><option>45</option><option>57</option>
+      <option>75</option><option selected>85</option><option>100</option><option>105</option>
+      <option>120</option><option>122</option><option>125</option><option>152</option>
+    </select>
+    <label>Наклон брони от вертикали <b id="angV"></b></label>
+    <input id="ang" type="range" min="0" max="85" value="30">
+    <label>Толщина брони <b id="thkV"></b></label>
+    <input id="thk" type="range" min="10" max="400" step="5" value="100">
+    <label>Дистанция <b id="distV"></b></label>
+    <input id="dist" type="range" min="100" max="3000" step="100" value="500">
+    <button id="fire">ОГОНЬ!</button>
+    <div class="result" id="res"></div>
+    <table id="stats"></table>
+    <div class="hint">Упрощённая модель: приведённая броня = толщина / cos(угол − нормализация). Есть рикошеты, нормализация, «перекрытие калибром» и случайный разброс бронепробития ±5%.</div>
+  </div>
+  <div class="panel"><canvas id="cv" width="800" height="500"></canvas></div>
+</div>
+<script>
+// Параметры типов снарядов: пробитие на мм калибра, потеря пробития на 1 км,
+// нормализация (°), угол гарантированного рикошета (°), скорость (м/с)
+const SHELLS = {
+  AP:     { name:'ББ',   k:1.9,  loss:0.12, norm:5,  ric:70, v:800,  color:'#c8a050' },
+  APCR:   { name:'БПС',  k:2.6,  loss:0.25, norm:2,  ric:70, v:1050, color:'#d0d0d8' },
+  APFSDS: { name:'БОПС', k:4.6,  loss:0.06, norm:0,  ric:78, v:1650, color:'#9ab0c8' },
+  HEAT:   { name:'КС',   k:4.0,  loss:0,    norm:0,  ric:80, v:900,  color:'#c86060' },
+  HE:     { name:'ОФС',  k:0.17, loss:0,    norm:0,  ric:90, v:750,  color:'#70a060' },
+};
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, CX = 520, CY = 260;
+const rad = d => d * Math.PI / 180;
+
+function updLabels() {
+  $('calV').textContent = $('cal').value + ' мм';
+  $('angV').textContent = $('ang').value + '°';
+  $('thkV').textContent = $('thk').value + ' мм';
+  $('distV').textContent = $('dist').value + ' м';
+}
+
+function compute() {
+  const s = SHELLS[$('type').value];
+  const cal = +$('cal').value, ang = +$('ang').value, thk = +$('thk').value, dist = +$('dist').value;
+  const basePen = s.k * cal * (1 - s.loss * dist / 1000);
+  const pen = basePen * (0.95 + Math.random() * 0.1);
+  const overmatch = cal > thk * 3;
+  let norm = s.norm;
+  if (overmatch && (s.norm > 0)) norm *= 1.4 * cal / thk / 3;
+  const effAng = Math.max(0, ang - norm);
+  const eff = thk / Math.cos(rad(Math.min(effAng, 89)));
+  let outcome;
+  if (!overmatch && ang >= s.ric) outcome = 'ric';
+  else if (pen >= eff) outcome = 'pen';
+  else outcome = 'nopen';
+  // ОФС может нанести урон без пробития, если броня тонкая
+  const heDamage = $('type').value === 'HE' && outcome === 'nopen' && thk < cal * 0.35;
+  return { s, cal, ang, thk, dist, pen, basePen, eff, effAng, norm, overmatch, outcome, heDamage };
+}
+
+// Геометрия плиты: наклонена назад на угол ang, снаряд летит горизонтально
+function plateCorners(ang, thk) {
+  const h = 320, t = Math.max(6, Math.min(80, thk * 0.25));
+  const a = rad(ang), ux = Math.sin(a), uy = -Math.cos(a); // вдоль плиты (вверх)
+  const nx = Math.cos(a), ny = Math.sin(a);                 // нормаль вглубь
+  const p = (s, d) => [CX + ux * s + nx * d, CY + uy * s + ny * d];
+  return { pts: [p(-h/2, 0), p(h/2, 0), p(h/2, t), p(-h/2, t)], t, nx, ny, ux, uy };
+}
+
+let anim = null, particles = [];
+function drawScene(st, r) {
+  ctx.fillStyle = '#0e1014'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#1c2028'; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  const pc = plateCorners(r.ang, r.thk);
+  // плита
+  const g = ctx.createLinearGradient(pc.pts[0][0], pc.pts[0][1], pc.pts[3][0], pc.pts[3][1]);
+  g.addColorStop(0, '#6b7480'); g.addColorStop(1, '#3d444d');
+  ctx.fillStyle = g; ctx.beginPath(); pc.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#8a939e'; ctx.stroke();
+  // пробоина
+  if (st.hole) {
+    ctx.fillStyle = '#0e1014'; ctx.beginPath();
+    ctx.ellipse(st.hole.x, st.hole.y, st.hole.r, st.hole.r * 0.5, rad(r.ang) + Math.PI/2, 0, Math.PI*2); ctx.fill();
+  }
+  if (st.dent) {
+    ctx.fillStyle = '#ffb04088'; ctx.beginPath(); ctx.arc(st.dent.x, st.dent.y, st.dent.r, 0, Math.PI*2); ctx.fill();
+  }
+  // нормаль и угол
+  ctx.setLineDash([5, 5]); ctx.strokeStyle = '#4a90d9';
+  ctx.beginPath(); ctx.moveTo(CX - pc.nx * 120, CY - pc.ny * 120); ctx.lineTo(CX, CY); ctx.stroke();
+  ctx.strokeStyle = '#555'; ctx.beginPath(); ctx.moveTo(40, CY); ctx.lineTo(CX, CY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#4a90d9'; ctx.font = '13px system-ui';
+  ctx.fillText('нормаль', CX - pc.nx * 120 - 20, CY - pc.ny * 120 - 6);
+  ctx.fillStyle = '#9aa3ad';
+  ctx.fillText(`угол ${r.ang}°  ·  приведённая броня ${r.eff.toFixed(0)} мм`, 20, H - 20);
+  // снаряд
+  if (st.shell) {
+    const { x, y, dir } = st.shell, len = Math.max(14, r.cal * 0.35), w = Math.max(4, r.cal * (r.s === SHELLS.APFSDS ? 0.06 : 0.12));
+    ctx.save(); ctx.translate(x, y); ctx.rotate(dir);
+    ctx.fillStyle = r.s.color; ctx.beginPath();
+    ctx.moveTo(len/2, 0); ctx.lineTo(len/4, -w/2); ctx.lineTo(-len/2, -w/2); ctx.lineTo(-len/2, w/2); ctx.lineTo(len/4, w/2); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // трассер
+    ctx.strokeStyle = 'rgba(255,200,120,0.35)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - Math.cos(dir) * 60, y - Math.sin(dir) * 60); ctx.lineTo(x, y); ctx.stroke(); ctx.lineWidth = 1;
+  }
+  // частицы
+  particles.forEach(p => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.c; ctx.fillRect(p.x, p.y, p.s, p.s); });
+  ctx.globalAlpha = 1;
+  if (st.flash > 0) { ctx.fillStyle = `rgba(255,220,150,${st.flash})`; ctx.beginPath(); ctx.arc(st.fx, st.fy, 60 * st.flash + 10, 0, Math.PI*2); ctx.fill(); }
+}
+
+function burst(x, y, n, dirA, spread, speed, colors) {
+  for (let i = 0; i < n; i++) {
+    const a = dirA + (Math.random() - 0.5) * spread, v = speed * (0.4 + Math.random());
+    particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, s: 2 + Math.random() * 3, c: colors[i % colors.length] });
+  }
+}
+
+function fire() {
+  cancelAnimationFrame(anim); particles = [];
+  const r = compute();
+  $('res').textContent = ''; showStats(r, false);
+  const pc = plateCorners(r.ang, r.thk);
+  const st = { shell: { x: 30, y: CY, dir: 0 }, flash: 0, phase: 'fly' };
+  const speed = 6 + r.s.v / 120;
+  let t = 0;
+  const step = () => {
+    t++;
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.015; });
+    particles = particles.filter(p => p.life > 0);
+    if (st.flash > 0) st.flash -= 0.04;
+    if (st.shell) {
+      st.shell.x += Math.cos(st.shell.dir) * speed; st.shell.y += Math.sin(st.shell.dir) * speed;
+      if (st.phase === 'fly' && st.shell.x >= CX) impact(r, st, pc);
+      if (st.phase === 'through' && st.shell.x > W + 50) st.shell = null;
+      if (st.phase === 'ric' && (st.shell.y < -50 || st.shell.x < -50)) st.shell = null;
+    }
+    drawScene(st, r);
+    if (st.shell || particles.length || st.flash > 0) anim = requestAnimationFrame(step);
+  };
+  step();
+}
+
+function impact(r, st, pc) {
+  st.fx = CX; st.fy = CY; st.flash = 1; st.shell.x = CX;
+  const back = Math.atan2(-pc.ny, -pc.nx);
+  if (r.s === SHELLS.HE) {
+    st.shell = null; st.phase = 'done';
+    burst(CX, CY, 120, Math.PI, Math.PI * 1.6, 5, ['#ffcc55', '#ff7733', '#777']);
+    if (r.outcome === 'pen') { st.hole = { x: CX, y: CY, r: r.cal * 0.25 }; burst(CX + 10, CY, 50, 0, 1.2, 4, ['#ffaa33', '#999']); }
+    else st.dent = { x: CX, y: CY, r: 10 };
+  } else if (r.outcome === 'ric') {
+    st.phase = 'ric';
+    // отражение горизонтального вектора от наклонной плиты
+    st.shell.dir = 2 * rad(r.ang) - Math.PI;
+    st.dent = { x: CX, y: CY, r: 6 };
+    burst(CX, CY, 40, st.shell.dir, 0.8, 5, ['#ffdd88', '#ffaa44']);
+  } else if (r.outcome === 'pen') {
+    st.phase = 'through';
+    const pcT = pc.t;
+    st.hole = { x: CX + pc.nx * pcT / 2, y: CY + pc.ny * pcT / 2, r: Math.max(5, r.cal * (r.s === SHELLS.HEAT ? 0.08 : 0.15)) };
+    // нормализация поворачивает снаряд к нормали
+    st.shell.dir = rad(r.ang - r.effAng);
+    st.shell.x = CX + pc.nx * pcT + 4;
+    if (r.s === SHELLS.HEAT) {
+      burst(CX + pc.nx * pcT, CY + pc.ny * pcT, 80, 0, 0.5, 9, ['#fff2a0', '#ff8833', '#ff4422']);
+      st.shell = null; st.phase = 'done';
+    }
+    burst(CX + pc.nx * pcT, CY + pc.ny * pcT, 70, 0, 1.4, 6, ['#ffbb55', '#bbb', '#888']);
+    burst(CX, CY, 20, back, 1.2, 3, ['#ffdd88']);
+  } else {
+    st.shell = null; st.phase = 'done';
+    st.dent = { x: CX, y: CY, r: 9 };
+    burst(CX, CY, 60, Math.PI, Math.PI * 1.2, 4, ['#ffdd88', '#ffaa44', '#aaa']);
+  }
+  showStats(r, true);
+}
+
+function showStats(r, final) {
+  const map = { pen: ['ПРОБИТИЕ!', 'var(--ok)'], nopen: ['НЕ ПРОБИЛ', 'var(--bad)'], ric: ['РИКОШЕТ', 'var(--warn)'] };
+  if (final) {
+    let [txt, col] = map[r.outcome];
+    if (r.heDamage) { txt = 'НЕ ПРОБИЛ (урон фугасом)'; col = 'var(--warn)'; }
+    $('res').textContent = txt; $('res').style.color = col;
+  }
+  const rows = [
+    ['Снаряд', `${r.cal} мм ${r.s.name}`],
+    ['Скорость', `${r.s.v} м/с`],
+    ['Бронепробитие на дистанции', `${r.basePen.toFixed(0)} мм`],
+    ['Бронепробитие (с разбросом)', final ? `${r.pen.toFixed(0)} мм` : '—'],
+    ['Нормализация', `${r.norm.toFixed(1)}°`],
+    ['Угол рикошета', r.s.ric >= 90 ? 'нет' : `${r.s.ric}°`],
+    ['Перекрытие калибром', r.overmatch ? 'да' : 'нет'],
+    ['Приведённая броня', `${r.eff.toFixed(0)} мм`],
+  ];
+  $('stats').innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+}
+
+['type', 'cal', 'ang', 'thk', 'dist'].forEach(id => $(id).addEventListener('input', () => {
+  updLabels(); cancelAnimationFrame(anim); particles = [];
+  const r = compute(); showStats(r, false); $('res').textContent = '';
+  drawScene({ shell: { x: 30, y: CY, dir: 0 } }, r);
+}));
+$('fire').onclick = fire;
+updLabels();
+{ const r = compute(); showStats(r, false); drawScene({ shell: { x: 30, y: CY, dir: 0 } }, r); }
+</script>
+</body>
+</html>
